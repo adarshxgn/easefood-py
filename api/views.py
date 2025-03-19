@@ -154,8 +154,14 @@ class TableCreateListView(APIView):
 
     def get(self, request):
         user = request.user
-        tables = Table.objects.filter(owner = user)
-        return Response(TableSerializer(tables, many=True).data)
+        tables = Table.objects.filter(owner=user)
+        seller_category = user.seller_category
+        tables_data = TableSerializer(tables, many=True).data
+        return Response({
+            'tables': tables_data,
+            'seller': user.username,
+            'seller_category': seller_category
+        })
 
     def post(self, request, *args, **kwargs):
         user = request.user
