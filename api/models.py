@@ -119,20 +119,20 @@ class FoodCategory(BaseModel):
 
 class Food(BaseModel):
 
-    food_name = models.CharField(max_length= 200)
-    description = models.CharField(max_length= 200)
-    food_image = models.ImageField(upload_to ='food_images', null= True)
-    food_category_name = models.CharField(max_length=200, null=True, blank=True)   
-    owner = models.ForeignKey(Seller, on_delete=models.CASCADE)
-    price = models.DecimalField(max_digits=10, decimal_places= 2)
-    is_available = models.CharField(max_length=50, choices=[('available', 'Available'), ('unavailable', 'Unavailable')])
-    time_taken = models.PositiveIntegerField()
+        food_name = models.CharField(max_length= 200)
+        description = models.CharField(max_length= 200)
+        food_image = models.ImageField(upload_to ='food_images', null= True)
+        food_category_name = models.CharField(max_length=200, null=True, blank=True)   
+        owner = models.ForeignKey(Seller, on_delete=models.CASCADE)
+        price = models.DecimalField(max_digits=10, decimal_places= 2)
+        is_available = models.CharField(max_length=50, choices=[('available', 'Available'), ('unavailable', 'Unavailable')])
+        time_taken = models.PositiveIntegerField()
 
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=['owner', 'food_name'], name='unique_food')
-        ]
+        class Meta:
+            constraints = [
+                models.UniqueConstraint(fields=['owner', 'food_name'], name='unique_food')
+            ]
 
 
 class Table(models.Model):
@@ -156,7 +156,8 @@ class Cart(models.Model):
     description = models.CharField(max_length=200, null=True)
 
 class Checkout(models.Model):
-    cart = models.ManyToManyField(Cart, related_name="checkouts") 
+    cart = models.ManyToManyField(Cart, related_name="checkouts")
+    descriptions = models.CharField(max_length=200, null=True)
 
     def __str__(self):
         return f"Checkout for Table {self.get_table_number()}"
@@ -165,6 +166,16 @@ class Checkout(models.Model):
         """Get the table number from any cart item (assuming all belong to the same table)."""
         cart_item = self.cart.first()
         return cart_item.table_number.table_number if cart_item else None
+
+    def get_table_num(self):
+        """Get the table number from any cart item (assuming all belong to the same table)."""
+        cart_item = self.cart.first()
+        return cart_item.table_number if cart_item else None
+
+    def get_owner(self):
+        """Get the table number from any cart item (assuming all belong to the same table)."""
+        cart_item = self.cart.first()
+        return cart_item.table_number.owner if cart_item else None
 
     def get_cart_details(self):
         """Retrieve details of all cart items in the checkout."""
@@ -182,11 +193,12 @@ class Orders(models.Model):
     pin = models.ForeignKey(Seller, on_delete=models.CASCADE, related_name="orders")
     total_price = models.DecimalField(max_digits=10, decimal_places=2,null=True)
     table_number = models.ForeignKey(Table, on_delete=models.CASCADE, related_name="orders",default=1)
-    status = models.CharField(max_length=20, choices=[("Pending", "Pending"), ("Paid", "Paid")], default="Pending")
+    descriptions = models.CharField(max_length=200, null=True)
+    status = models.CharField(max_length=20, choices=[("Pending", "Pending"), ("Paid", "Paid"),("Delivered","Delivered")], default="Pending")
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
-        return f"Order {self.id} - {self.pin.pin}"  # Display order ID and PIN
+        return f"Order {self.id} - {self.pin.pin}"  # Display order ID and PIN 
 
 
 class OrderItem(models.Model):

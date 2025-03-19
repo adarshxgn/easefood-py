@@ -59,7 +59,9 @@ urlpatterns = [
      path('api/otp/', views.VerifyOTPView.as_view(), name='otp'),  # List & Create Orderspath("payment/", PaymentView.as_view(), name="payment"),  # Initiate Payment
     path("verify-payment/", views.VerifyPaymentView.as_view(), name="verify-payment"),  
     path("orders/<str:pin>/", views.OrdersByPinAPIView.as_view(), name="orders-by-pin"),
+    path("orders-dashboard/<str:pin>/", views.OrdersByPinDashboardAPIView.as_view()),
     path("api/send-otp/", views.SendOTPView.as_view(), name="send-otp"),
+    path("order-status/<int:pk>/", views.OrdersStatusUpdateAPIView.as_view(), name="order-status"),
 
 ]
 

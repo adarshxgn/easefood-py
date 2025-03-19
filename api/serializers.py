@@ -160,12 +160,12 @@ class CheckoutSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Checkout
-        fields = ['table_number', 'total_price', 'cart_details']
+        fields = ['id','table_number', 'total_price', 'cart_details', 'descriptions']
 
     def get_table_number(self, obj):
         """
         Retrieves the table number from the first cart item.
-        """
+        """ 
         cart_item = obj.cart.first()
         return cart_item.table_number.table_number if cart_item and cart_item.table_number else None
 
@@ -208,8 +208,26 @@ class OrdersSerializer(serializers.ModelSerializer):
         model = Orders
         fields = ["id", "pin", "table_number", "total_price", "status", "created_at", "items"]
 
+class OrderItemSerializer1(serializers.ModelSerializer):
+    food_name = serializers.CharField(source="food.food_name", read_only=True)
+    time_taken = serializers.IntegerField(source="food.time_taken", read_only=True)  # Fetch time_taken
 
-class OTPRequestSerializer(serializers.Serializer):
+    class Meta:
+        model = OrderItem
+        fields = ["id", "food_name", "quantity", "price", "time_taken"]
+
+
+class OrdersSerializer1(serializers.ModelSerializer):
+    items = OrderItemSerializer1(many=True, read_only=True)
+    pin = serializers.CharField(source="pin.pin", read_only=True)  
+
+    class Meta:
+        model = Orders
+        fields = ["id", "pin", "table_number", "total_price", "status", "created_at", "items", "descriptions"]
+
+
+
+class OTPRequestSerializer(serializers.Serializer): 
     email = serializers.EmailField()
 
     def validate_email(self, value):

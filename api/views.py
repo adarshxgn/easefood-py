@@ -67,6 +67,7 @@ class SignInView(APIView):
                 'pin':user.pin,
                 'owner':user.id,
                 'is_verified':user.is_verified,
+                'seller_category':user.seller_category, 
                 'message': 'Login successfull'
             }, status=status.HTTP_200_OK)
 
@@ -424,6 +425,7 @@ class CheckoutListCreateView(APIView):
         - Returns the checkout details.
         """
         table_number = request.data.get("table_number")  # Get table number from request
+        desc = request.data.get("descriptions")  # Get table number from request
 
         # Get all cart items linked to this table
         cart_items = Cart.objects.filter(table_number__table_number=table_number)
@@ -434,11 +436,10 @@ class CheckoutListCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Create checkout instance and link cart items
-        checkout = Checkout.objects.create()
+        checkout = Checkout.objects.create(descriptions=desc)
         checkout.cart.set(cart_items)  # Add cart items to checkout
 
-        serializer = CheckoutSerializer(checkout)
+        serializer = CheckoutSerializer(checkout)   
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -459,10 +460,11 @@ class CheckoutDetailView(APIView):
         """
         checkout = self.get_object(pk)
         serializer = CheckoutSerializer(checkout)
+        print("ser",serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def delete(self, request, pk):
-        """
+        """ 
         Delete a checkout instance.
         """
         checkout = self.get_object(pk)
@@ -495,36 +497,47 @@ class CheckoutDetailView(APIView):
                 {"error": f"Could not delete checkout: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
 class PaymentView(APIView):
-    def post(self, request, *args, **kwargs):
-        checkout_id = request.data.get("checkout_id")  # Get checkout ID from request
-        checkout = get_object_or_404(Checkout, id=checkout_id)
-        
-        # Calculate total price
-        total_price = sum(item.food.price * item.quantity for item in checkout.cart.all())
-        amount = int(total_price * 100)  # Convert to paise (for Razorpay)
+        def post(self, request, *args, **kwargs):
+            checkout_id = request.data.get("checkout_id")
+            checkout = get_object_or_404(Checkout, id=checkout_id)
 
-        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-        order = client.order.create({
-            'amount': amount,
-            'currency': 'INR',
-            'payment_capture': 1
-        })
+            # Calculate total price
+            total_price = sum(item.food.price * item.quantity for item in checkout.cart.all())
+            amount = int(total_price * 100)  # Convert to paise for Razorpay
 
-        return Response({
-            'order_id': order['id'],
-            'amount': amount,
-            'currency': 'INR'
-        }, status=status.HTTP_200_OK)
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            order = client.order.create({
+                'amount': amount,
+                'currency': 'INR',  
+                'payment_capture': 1,
+               
+            })
 
+            return Response({
+                'order_id': order['id'],
+                'amount': amount,
+                'currency': 'INR',
+                 'key': settings.RAZORPAY_KEY_ID    
+            }, status=status.HTTP_200_OK)
 
+from .serializers import OrdersSerializer1
 class OrdersByPinAPIView(generics.ListAPIView):
-    serializer_class = OrdersSerializer
+    serializer_class = OrdersSerializer1
 
     def get_queryset(self):
         pin = self.kwargs.get("pin")
-        seller = get_object_or_404(Seller, pin=pin)
-        return Orders.objects.filter(pin=seller, status="Paid")  # Show only paid orders
+        seller = get_object_or_404(Seller, pin=pin) 
+        return Orders.objects.filter(pin=seller, status="Paid")  # Filter by seller, not pin
+    
+class OrdersByPinDashboardAPIView(generics.ListAPIView):
+    serializer_class = OrdersSerializer1
+
+    def get_queryset(self):
+        pin = self.kwargs.get("pin")
+        seller = get_object_or_404(Seller, pin=pin) 
+        return Orders.objects.filter(pin=seller, status="Paid")  # Filter by seller, not pin
 
 
 class VerifyPaymentView(APIView):
@@ -534,9 +547,12 @@ class VerifyPaymentView(APIView):
 
     def post(self, request, *args, **kwargs):
         checkout_id = request.data.get("checkout_id")
+        order_id = request.data.get("order_id")
         payment_id = request.data.get("payment_id")
         razorpay_signature = request.data.get("razorpay_signature")
-
+        print(order_id)
+        print(payment_id)
+        print(razorpay_signature)
         client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
         try:
@@ -544,43 +560,41 @@ class VerifyPaymentView(APIView):
 
             # Verify payment signature
             params_dict = {
-                'razorpay_order_id': request.data.get("order_id"),
+                'razorpay_order_id': order_id,
                 'razorpay_payment_id': payment_id,
                 'razorpay_signature': razorpay_signature
             }
 
-            result = client.utility.verify_payment_signature(params_dict)
+            client.utility.verify_payment_signature(params_dict)
 
-            if not result:
-                return Response({"error": "Payment verification failed"}, status=status.HTTP_400_BAD_REQUEST)
+            # Prevent duplicate orders
+            # if Orders.objects.filter(pin=checkout.get_owner(), table_number=checkout.get_table_num(), total_price__gt=0, status="Paid").exists():
+            #     return Response({"error": "Order already processed"}, status=status.HTTP_200_OK)
 
-            # Prevent duplicate order for this checkout
-            if Orders.objects.filter(user=checkout.user, seller=checkout.seller, total_price__gt=0, status="Paid").exists():
-                return Response({"message": "Order already processed"}, status=status.HTTP_200_OK)
-
-            # Ensure cart is not empty before proceeding
+            # Ensure cart is not empty
             if not checkout.cart.exists():
+                print("Cart is empty, cannot create an order")  
                 return Response({"error": "Cart is empty, cannot create an order"}, status=status.HTTP_400_BAD_REQUEST)
 
-            with transaction.atomic():
-                # Create an Order from Cart Items
+            with transaction.atomic():  
+                # Create an order
                 order = Orders.objects.create(
-                    user=checkout.user,
-                    seller=checkout.seller,
+                    pin=checkout.get_owner(),
+                    table_number=checkout.get_table_num(),   
                     total_price=sum(item.food.price * item.quantity for item in checkout.cart.all()),
-                    status="Paid"
-                )
+                    status="Paid",
+                    descriptions   = checkout.descriptions
+                )       
 
-                # Move Cart Items to Order
-                order_items = [
+                # Move cart items to order
+                for cart_item in checkout.cart.all():
                     order.items.create(
                         food=cart_item.food,
                         quantity=cart_item.quantity,
                         price=cart_item.food.price
-                    ) for cart_item in checkout.cart.all()
-                ]
+                    )
 
-                # Clear the Cart after order creation
+                # Clear the cart after order creation
                 checkout.cart.all().delete()
 
             return Response({
@@ -588,9 +602,13 @@ class VerifyPaymentView(APIView):
                 "order_id": order.id
             }, status=status.HTTP_200_OK)
 
+        except razorpay.errors.SignatureVerificationError:
+            return Response({"error": "Payment verification failed"}, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
+            print(e)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
 class EmptyCartAPIView(APIView):
     def delete(self, request, table_id):
         try:
@@ -602,7 +620,22 @@ class EmptyCartAPIView(APIView):
             )
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+
+
+class OrdersStatusUpdateAPIView(APIView):
+    def post(self, request, pk):
+        try:
+            order = get_object_or_404(Orders, id=pk)
+            order.status = "Delivered"
+            order.save()
+            return Response(
+                {"message": "Order status updated successfully"},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:  
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class VerifyOTPView(APIView):
     def post(self, request, *args, **kwargs):
         email = request.data.get("email")
