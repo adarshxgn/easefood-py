@@ -194,7 +194,7 @@ class Orders(models.Model):
     total_price = models.DecimalField(max_digits=10, decimal_places=2,null=True)
     table_number = models.ForeignKey(Table, on_delete=models.CASCADE, related_name="orders",default=1)
     descriptions = models.CharField(max_length=200, null=True)
-    status = models.CharField(max_length=20, choices=[("Pending", "Pending"), ("Paid", "Paid"),("Delivered","Delivered")], default="Pending")
+    status = models.CharField(max_length=20, choices=[("Pending", "Pending"), ("Paid", "Paid"), ("Processing", "Processing"),("Delivered","Delivered")], default="Pending")
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):

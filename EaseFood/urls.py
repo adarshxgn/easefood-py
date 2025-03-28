@@ -62,6 +62,7 @@ urlpatterns = [
     path("orders-dashboard/<str:pin>/", views.OrdersByPinDashboardAPIView.as_view()),
     path("api/send-otp/", views.SendOTPView.as_view(), name="send-otp"),
     path("order-status/<int:pk>/", views.OrdersStatusUpdateAPIView.as_view(), name="order-status"),
+    path("order-status-processing/<int:pk>/", views.OrdersStatusProcessingAPIView.as_view()),
 
 ]
 

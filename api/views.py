@@ -155,6 +155,7 @@ class TableCreateListView(APIView):
     def get(self, request):
         user = request.user
         tables = Table.objects.filter(owner=user)
+        print("tables" ,tables)
         seller_category = user.seller_category
         tables_data = TableSerializer(tables, many=True).data
         return Response({
@@ -170,9 +171,11 @@ class TableCreateListView(APIView):
         table_number = request.data.get('table_number')
         if not table_number:
             return Response({"error": "Table number is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        table = Table.objects.create(owner = user, table_number=table_number)
-        table.save()
+        try:
+            table = Table.objects.create(owner = user, table_number=table_number)
+            table.save()
+        except Exception as e:
+            return Response({"error": "Table number already exist!!!"}, status=status.HTTP_400_BAD_REQUEST)
         
 
         return Response(TableSerializer(table).data, status=status.HTTP_201_CREATED)
@@ -535,7 +538,7 @@ class OrdersByPinAPIView(generics.ListAPIView):
     def get_queryset(self):
         pin = self.kwargs.get("pin")
         seller = get_object_or_404(Seller, pin=pin) 
-        return Orders.objects.filter(pin=seller, status="Paid")  # Filter by seller, not pin
+        return Orders.objects.filter(pin=seller, status="Delivered")  # Filter by seller, not pin
     
 class OrdersByPinDashboardAPIView(generics.ListAPIView):
     serializer_class = OrdersSerializer1
@@ -543,13 +546,13 @@ class OrdersByPinDashboardAPIView(generics.ListAPIView):
     def get_queryset(self):
         pin = self.kwargs.get("pin")
         seller = get_object_or_404(Seller, pin=pin) 
-        return Orders.objects.filter(pin=seller, status="Paid")  # Filter by seller, not pin
+        return Orders.objects.filter(pin=seller, status="Paid") |  Orders.objects.filter(pin=seller, status="Processing")  # Filter by seller, not pin
 
 
 class VerifyPaymentView(APIView):
     """
     Verifies the payment and creates an order if payment is successful.
-    """
+    """ 
 
     def post(self, request, *args, **kwargs):
         checkout_id = request.data.get("checkout_id")
@@ -628,6 +631,19 @@ class EmptyCartAPIView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+
+class OrdersStatusProcessingAPIView(APIView):
+    def post(self, request, pk):
+        try:
+            order = get_object_or_404(Orders, id=pk)
+            order.status = "Processing"
+            order.save()
+            return Response(
+                {"message": "Order status updated successfully"},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:  
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class OrdersStatusUpdateAPIView(APIView):
     def post(self, request, pk):
