@@ -203,6 +203,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrdersSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     pin = serializers.CharField(source="pin.pin", read_only=True)  # Get PIN
+    
 
     class Meta:
         model = Orders
@@ -219,10 +220,11 @@ class OrderItemSerializer1(serializers.ModelSerializer):
 
 class OrdersSerializer1(serializers.ModelSerializer):
     items = OrderItemSerializer1(many=True, read_only=True)
-    pin = serializers.CharField(source="pin.pin", read_only=True)  
+    pin = serializers.CharField(source="pin.pin", read_only=True) 
+    table_number = serializers.IntegerField(source="table_number.table_number", read_only=True) 
 
     class Meta:
-        model = Orders
+        model = Orders  
         fields = ["id", "pin", "table_number", "total_price", "status", "created_at", "items", "descriptions"]
 
 
