@@ -538,7 +538,7 @@ class OrdersByPinAPIView(generics.ListAPIView):
     def get_queryset(self):
         pin = self.kwargs.get("pin")
         seller = get_object_or_404(Seller, pin=pin) 
-        return Orders.objects.filter(pin=seller, status="Delivered")  # Filter by seller, not pin
+        return Orders.objects.filter(pin=seller, status="Delivered") | Orders.objects.filter(pin=seller, status="Completed")  # Filter by seller, not pin
     
 class OrdersByPinDashboardAPIView(generics.ListAPIView):
     serializer_class = OrdersSerializer1
@@ -650,6 +650,19 @@ class OrdersStatusUpdateAPIView(APIView):
         try:
             order = get_object_or_404(Orders, id=pk)
             order.status = "Delivered"
+            order.save()
+            return Response(
+                {"message": "Order status updated successfully"},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:  
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class OrdersStatusCompletedAPIView(APIView):
+    def post(self, request, pk):
+        try:
+            order = get_object_or_404(Orders, id=pk)
+            order.status = "Completed"
             order.save()
             return Response(
                 {"message": "Order status updated successfully"},
